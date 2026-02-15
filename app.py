@@ -5,6 +5,7 @@ import os.path
 import time
 import requests
 import plotly.graph_objects as go
+import json
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -84,20 +85,34 @@ def mediasConsumos():
     else:
         st.write("No hay datos suficientes.")
 
+
 def get_google_fit_data():
     creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json',
+
+    # 1. Intentar cargar el token desde Secrets (para la nube)
+    if "google_fit_token" in st.secrets:
+        token_data = json.loads(st.secrets["google_fit_token"])
+        creds = Credentials.from_authorized_user_info(token_data)
+
+    # 2. Si no está en secrets, buscar localmente (para desarrollo)
+    elif os.path.exists('.streamlit/token.json'):
+        creds = Credentials.from_authorized_user_file('.streamlit/token.json',
                                                       ['https://www.googleapis.com/auth/fitness.heart_rate.read'])
+
+    # 3. Si el token expiró, refrescarlo
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        # Opcional: imprimir el nuevo token en consola para actualizar el Secret si fuera necesario
+
+    # 4. Si no hay credenciales válidas, iniciar flujo (Solo local)
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json',
+        if os.path.exists('.streamlit/credentials.json'):
+            flow = InstalledAppFlow.from_client_secrets_file('.streamlit/credentials.json',
                                                              ['https://www.googleapis.com/auth/fitness.heart_rate.read'])
             creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+        else:
+            st.error("No se han encontrado credenciales de Google. Configura los Secrets en Streamlit Cloud.")
+            st.stop()
 
     service = build('fitness', 'v1', credentials=creds)
     body = {
