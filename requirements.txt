@@ -3,3 +3,13 @@ pandas
 numpy
 plotly
 openpyxl
+st-gsheets-connection
+requests
+google-auth-oauthlib
+google-api-python-client
+protobuf
+st-gsheets-connection
+requests
+google-auth-oauthlib
+google-api-python-client
+protobuf
