@@ -1,23 +1,38 @@
 import streamlit as st
-import logic
 import database
-from tabs import tab_analisis
-from tabs import tab_historial
-from tabs import tab_reductor
+import logic
+from tabs.tab_analisis import AnalisisTab
+from tabs.tab_historial import HistorialTab
+from tabs.tab_planificacion import PlanificacionTab
+from tabs.tab_toma import TomaTab
 
 # Configuración
 st.set_page_config(page_title="Reductor GHB", layout="wide")
 st.title("📉 Reductor GHB")
 
 df = database.get_excel_data()
-resumen = logic.calcular_resumen_bloques(df)
-media_3d = logic.obtener_media_3d(resumen)
-
-# Interfaz de Tabs
-t1, t2, t3 = st.tabs(["📉 Reductor", "📊 Análisis", "📜 Historial"])
+config = logic.load_config()
+t1, t2, t3,t4 = st.tabs(["📉 Reductor", "📅 Planificación", "📊 Análisis", "📜 Historial"])
 with t1:
-    tab_reductor.render(df)
+    tab = TomaTab(df, config)
+    st.header("📉 Panel Reductor")
+    tab.mostrar_registro()
+    tab.mostrar_metricas()
+    st.markdown("---")
 with t2:
-    tab_analisis.render(df, resumen, media_3d)
+    st.header("📅 Planificación de Reducción")
+    tab = PlanificacionTab(df,config)
+    tab.render_configurar_plan()
+    tab.render_tabla_plan()
 with t3:
-    tab_historial.render(df)
+    st.subheader("🧬 Bio-Análisis y Calibración")
+    tab = AnalisisTab(df,config)
+    ka, hl = tab.render_parametros_simulacion()
+    tab.render_grafica(hl, ka)
+with t4:
+    tab = HistorialTab(df,config)
+    tab.render_tabla_historial()
+    tab.render_metricas_logros()
+    tab.render_zona_peligro()
+    tab.render_filtros_visualizacion()
+
