@@ -30,12 +30,9 @@ def get_excel_data():
         df['timestamp'] = df['timestamp'].dt.tz_localize('Europe/Madrid')
 
     return df.sort_values('timestamp', ascending=False)
-
-
 def enviar_toma_api( fecha_str, hora_str, cantidad, saldo=None):
     payload = {"fecha": fecha_str, "hora": hora_str, "ml": cantidad, "saldo": saldo}
     return requests.post(URL_WEB_APP, json=payload)
-
 def get_plan_history_data():
     """Obtiene el historial del plan desde Google Sheets."""
     try:
@@ -52,7 +49,6 @@ def get_plan_history_data():
     except Exception as e:
         print(f"Error cargando historial plan: {e}")
     return pd.DataFrame()
-
 def save_plan_history_data(df):
     """Guarda el historial del plan en Google Sheets."""
     try:
@@ -61,8 +57,7 @@ def save_plan_history_data(df):
         requests.post(URL_WEB_APP, json=payload, timeout=15)
     except Exception as e:
         print(f"Error guardando historial plan: {e}")
-
-def get_remote_config():
+def get_config():
     """Obtiene la configuración desde la hoja 'Config'."""
     try:
         params = {"action": "get_config"}
@@ -77,8 +72,7 @@ def get_remote_config():
     except Exception as e:
         print(f"Error cargando config remota: {e}")
     return {}
-
-def save_remote_config(data):
+def save_config(data):
     """Guarda/Actualiza la configuración en la hoja 'Config'."""
     try:
         payload = {"action": "save_config", "data": data}
@@ -87,7 +81,6 @@ def save_remote_config(data):
     except Exception as e:
         print(f"Error guardando config remota: {e}")
         return False
-
 def eliminar_ultima_toma():
     try:
         # Enviamos una petición POST con un parámetro especial para indicar borrado
@@ -104,7 +97,6 @@ def eliminar_ultima_toma():
     except Exception as e:
         print(f"Error al eliminar: {e}")
         return False
-
 def get_google_fit_data():
     creds = None
     scopes = ['https://www.googleapis.com/auth/fitness.heart_rate.read']

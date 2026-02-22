@@ -5,13 +5,14 @@ import logic
 import database
 
 class AnalisisTab:
-    def __init__(self, df_excel, resumen_bloques, media_3d):
+    def __init__(self, df_excel,config):
         self.df_excel = df_excel
-        self.resumen_bloques = resumen_bloques
-        self.media_3d = media_3d
-        self.config = logic.load_config()
+        self.resumen_bloques = logic.calcular_resumen_bloques(df_excel)
+        self.media_3d =  logic.obtener_media_3d(self.resumen_bloques)
+        self.config = config
 
-    def _render_parametros_simulacion(self):
+
+    def render_parametros_simulacion(self):
         with st.expander("🧪 AJUSTES FARMACOCINÉTICOS", expanded=False):
             saved_hl = self.config.get("hl", 0.75)
             saved_ka = self.config.get("ka", 3.0)
@@ -44,12 +45,7 @@ class AnalisisTab:
             fig_bar.add_trace(go.Scatter(x=df_t.index, y=[self.media_3d] * len(df_t), name="Media", line=dict(dash='dash', color='red')))
             fig_bar.update_layout(height=300, title="Consumo últimos 3 días")
             st.plotly_chart(fig_bar, use_container_width=True)
-
-    def render(self):
-        st.subheader("🧬 Bio-Análisis y Calibración")
-
-        ka, hl = self._render_parametros_simulacion()
-
+    def render_grafica(self, hl: float, ka: float):
         try:
             df_fit = database.get_google_fit_data()
             df_completo = logic.rellenar_datos_sin_frecuencia(df_fit, self.df_excel)
@@ -60,7 +56,3 @@ class AnalisisTab:
 
         except Exception as e:
             st.warning(f"Conecta Google Fit para ver el análisis cardíaco: {e}")
-
-def render(df_excel, resumen_bloques, media_3d):
-    tab = AnalisisTab(df_excel, resumen_bloques, media_3d)
-    tab.render()
