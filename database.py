@@ -13,7 +13,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from plotly.subplots import make_subplots
 
-URL_WEB_APP = "https://script.google.com/macros/s/AKfycbyjfrStGaO5O5j1JMSUFW2aN4u9LPcbe1-Hz96OUUmYMrF0odJ_Txcc40fhGiegCx3j/exec"
+URL_WEB_APP = "https://script.google.com/macros/s/AKfycbwUNNchR4XdVwAqkwlfRQ17GjrV3WPqx6bNlPiSRwt31FDk_USG2HAsep06JTLa4X_Q/exec"
 def get_excel_data():
     # Usamos el ID de tu hoja que ya tenías
     SHEET_ID = "18KYPnVSOQF6I2Lm5P1j5nFx1y1RXSmfMWf9jBR2WJ-Q"

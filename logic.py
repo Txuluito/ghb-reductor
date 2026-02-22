@@ -6,9 +6,66 @@ import database
 import streamlit as st
 
 # Usamos caché para no llamar a Google Sheets en cada interacción (TTL = 10 minutos)
-@st.cache_data(ttl=600, show_spinner=False)
+
 def get_cached_config():
     return database.get_remote_config()
+
+class ReductionPlan:
+    """
+    Encapsula la lógica y el estado del plan de reducción.
+    """
+    def __init__(self, df, config):
+        self.df = df
+        self.config = config
+        self.ahora = pd.Timestamp.now(tz='Europe/Madrid')
+        self._calculate_state()
+
+    def _calculate_state(self):
+        """
+        Calcula el estado actual del plan basado en la configuración y los datos.
+        """
+        self.dosis = float(self.config.get("dosis", 3.2))
+        self.rate = float(self.config.get("reduction_rate", 0.5))
+        self.start_amount = float(self.config.get("plan_start_amount", 15.0))
+
+        plan_start_str = self.config.get("plan_start_date")
+        if plan_start_str:
+            plan_start_dt = pd.to_datetime(plan_start_str)
+            if plan_start_dt.tz is None:
+                plan_start_dt = plan_start_dt.tz_localize('Europe/Madrid')
+            else:
+                plan_start_dt = plan_start_dt.tz_convert('Europe/Madrid')
+        else:
+            plan_start_dt = self.ahora
+            save_config({
+                "plan_start_date": self.ahora.isoformat(),
+                "checkpoint_ingresos": 0.0,
+                "checkpoint_fecha": self.ahora.isoformat()
+            })
+        self.plan_start_dt = plan_start_dt
+
+        self.checkpoint_ingresos = float(self.config.get("checkpoint_ingresos", 0.0))
+        checkpoint_fecha_str = self.config.get("checkpoint_fecha", None)
+        checkpoint_fecha = pd.to_datetime(checkpoint_fecha_str) if checkpoint_fecha_str else self.plan_start_dt
+        if checkpoint_fecha.tz is None:
+            checkpoint_fecha = checkpoint_fecha.tz_localize('Europe/Madrid')
+
+        horas_desde_inicio = (self.ahora - self.plan_start_dt).total_seconds() / 3600
+        self.dias_flotantes = max(0.0, horas_desde_inicio / 24.0)
+
+        def integral(t_h):
+            if t_h < 0: return (self.start_amount / 24.0) * t_h
+            t_fin = (self.start_amount / self.rate) * 24 if self.rate > 0 else 999999
+            t_eff = min(t_h, t_fin)
+            return (self.start_amount / 24.0) * t_eff - (self.rate / 1152.0) * (t_eff ** 2)
+
+        self.ingresos_tramo = integral(horas_desde_inicio) - integral((checkpoint_fecha - self.plan_start_dt).total_seconds() / 3600)
+
+        consumo_total = self.df[self.df['timestamp'] >= self.plan_start_dt]['ml'].sum()
+        self.saldo = (self.checkpoint_ingresos + self.ingresos_tramo) - consumo_total
+        self.objetivo_actual = max(0.0, self.start_amount - (self.rate * self.dias_flotantes))
+
+
 
 def load_config():
     # Cargamos la configuración desde la caché
@@ -18,7 +75,7 @@ def save_config(data):
     # Guardamos la configuración en Google Sheets
     database.save_remote_config(data)
     # Limpiamos la caché para que la próxima vez se descargue la nueva configuración
-    get_cached_config.clear()
+    st.cache_data.clear()
 
 def calcular_resumen_bloques(df):
     ahora = pd.Timestamp.now(tz='Europe/Madrid')
@@ -39,16 +96,24 @@ def calcular_seguimiento_plan(df, config, force_recalc=False):
     Fecha | Objetivo (Plan) | Real | Reducción | Intervalo Teórico | Cumplido
     """
     # 1. Cargar parámetros del plan
+    raw_start = config.get("plan_start_date")
+    if not raw_start:
+        start_date = pd.Timestamp.now(tz='Europe/Madrid').date()
+        save_config({"plan_start_date": start_date.strftime('%Y-%m-%d')})
+        # Actualizamos el config en memoria para que el resto de la función lo use
+        config['plan_start_date'] = start_date.strftime('%Y-%m-%d')
+        raw_start = config['plan_start_date']
+
     try:
-        raw_start = config.get("plan_start_date", str(pd.Timestamp.now().date()))
         s_start = str(raw_start).strip()
         if len(s_start) == 8 and s_start.isdigit():
              start_date = pd.to_datetime(s_start, format='%Y%m%d').date()
         else:
              start_date = pd.to_datetime(s_start).date()
     except:
-        start_date = pd.Timestamp.now().date()
-        
+        start_date = pd.Timestamp.now().date() # Fallback por si acaso
+
+
     start_amount = float(config.get("plan_start_amount", 15.0))
     rate = float(config.get("reduction_rate", 0.1))
     dosis_media = float(config.get("dosis", 3.0))
