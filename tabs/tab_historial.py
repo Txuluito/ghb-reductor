@@ -28,7 +28,7 @@ class HistorialTab:
             df_display['Hora'] = df_display['timestamp'].dt.strftime('%H:%M')
             df_display['Dosis'] = df_display['ml'].apply(lambda x: f"{x:.2f} ml")
 
-            st.dataframe(df_display[['Fecha', 'Hora', 'Dosis', 'Intervalo Real']], use_container_width=True, hide_index=True)
+            st.dataframe(df_display[['Fecha', 'Hora', 'Dosis', 'Intervalo Real']], width='stretch', hide_index=True)
         else:
             st.info("No hay datos registrados todavía.")
 
@@ -90,9 +90,9 @@ class HistorialTab:
             col_t1, col_t2 = st.columns(2)
             with col_t1:
                 st.subheader("📊 Resumen Bloques")
-                st.dataframe(resumen_filtrado, use_container_width=True)
+                st.dataframe(resumen_filtrado, width='stretch')
             with col_t2:
                 st.subheader("🕒 Tomas Filtradas")
-                st.dataframe(df_filtrado[['fecha', 'hora', 'ml']], use_container_width=True, hide_index=True)
+                st.dataframe(df_filtrado[['fecha', 'hora', 'ml']], width='stretch', hide_index=True)
         else:
             st.info("No hay datos para filtrar.")

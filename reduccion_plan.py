@@ -47,16 +47,29 @@ def obtener_datos_tabla():
     # Asegurar que las columnas numéricas sean tratadas como números
     for col in ['Objetivo (ml)', 'Real (ml)', 'Reducción Plan', 'dosis_media']:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    df['Fecha'] = pd.to_datetime(df['Fecha'])
 
-    df['Fecha'] = pd.to_datetime(df['Fecha']).dt.strftime('%Y-%m-%d')
-    fecha_actual_str = datetime.now().strftime("%Y-%m-%d")
-    
-    def calcular_estado(fecha):
-        if fecha < fecha_actual_str: return "Pasado"
-        elif fecha == fecha_actual_str: return "Hoy"
-        else: return "Futuro"
-    
-    df["Estado"] = df["Fecha"].apply(calcular_estado)
+    # fecha_actual_str = datetime.now().strftime("%Y-%m-%d")
+    hoy = datetime.now().date() # Obtener la fecha de HOY (objeto date) una sola vez
+    def calcular_estado(row):
+        if row["Fecha"].date() < hoy:
+            # Ciclo cerrado (días anteriores)
+            if row['Real (ml)'] <= row['Objetivo (ml)'] + 0.5:
+                return "✅ Sí"
+            else:
+                return "❌ No"
+        elif row["Fecha"].date() == hoy:
+            # Ciclo en curso (hoy)
+            return "⏳ En curso"
+        else:
+            # Días futuros
+            return "🔮 Futuro"
+
+    # Usamos axis=1 para pasar cada fila a la función
+    # df["Estado"] = df["Fecha"].apply(calcular_estado)
+    df['Estado'] = df.apply(calcular_estado, axis=1)
+    df['dosis_media'] = df['dosis_media'].map('{:.2f}'.format)
+
     return df
 
 def crear_nuevo_plan(dosis_media, reduccion_diaria, cantidad_inicial,mlBote):
@@ -67,11 +80,12 @@ def crear_nuevo_plan(dosis_media, reduccion_diaria, cantidad_inicial,mlBote):
     df_nuevo = crear_tabla_reduccion(dosis_media, reduccion_diaria, cantidad_inicial)
     save_plan_history_data(df_nuevo) # <- CORREGIDO
     save_config({
-        "plan_start_date": ahora.isoformat(),  # Guardamos la nueva fecha
-        "checkpoint_fecha": ahora.isoformat(),  # Guardamos la nueva fecha
+        "fecha_inicio_plan": ahora.isoformat() ,  # Guardamos la nueva fecha
+        "checkpoint_fecha": ahora.isoformat() ,  # Guardamos la nueva fecha
+        "ml_iniciales_plan":cantidad_inicial,
         "checkpoint_ml": mlBote,
-        "reduction_rate": reduccion_diaria,
-        "dosis": dosis_media
+        "reduccion_diaria": reduccion_diaria,
+        "dosis_media": dosis_media
     })
 
     print(f"Nuevo plan guardado en la hoja 'PlanHistory'.")
@@ -79,7 +93,7 @@ def crear_nuevo_plan(dosis_media, reduccion_diaria, cantidad_inicial,mlBote):
 
 def replanificar(dosis_media, reduccion_diaria, cantidad_inicial, mlBote):
     """
-    (LEE Y ESCRIBE en 'PlanHistory')
+    (LEE Y ESCRIBE en 'Plan History')
     Recalcula los registros desde la fecha actual, conservando los anteriores.
     """
     df_existente = obtener_datos_tabla()
@@ -89,13 +103,14 @@ def replanificar(dosis_media, reduccion_diaria, cantidad_inicial, mlBote):
     df_nuevo = crear_tabla_reduccion(dosis_media, reduccion_diaria, cantidad_inicial)
     
     df_final = pd.concat([df_conservada, df_nuevo], ignore_index=True)
-    
+
     save_plan_history_data(df_final) # <- CORREGIDO
     save_config({
-        "checkpoint_fecha": ahora.isoformat(),  # Guardamos la nueva fecha
+        "ml_iniciales_plan": cantidad_inicial,
+        "checkpoint_fecha": ahora.isoformat() ,  # Guardamos la nueva fecha
         "checkpoint_ml": mlBote,
-        "reduction_rate": reduccion_diaria,
-        "dosis": dosis_media
+        "reduccion_diaria": reduccion_diaria,
+        "dosis_media": dosis_media
     })
 
     print(f"Plan replanificado en la hoja 'PlanHistory'.")
@@ -106,19 +121,25 @@ def guardar_toma(fecha_toma, hora_toma, ml_toma,ml_bote):
     (LEE Y ESCRIBE en 'PlanHistory' y 'Config')
     Guarda una toma, actualiza el plan y el checkpoint en la configuración.
     """
+    print(f"[guardar_toma] Argumentos -> fecha: {fecha_toma}, cantidad: {ml_toma} (Tipo: {type(ml_toma)})")
     nuevo_checkpoint_ml = ml_bote - ml_toma
-    enviar_toma_api(fecha_toma.strftime('%d/%m/%Y'), hora_toma.strftime('%H:%M:%S'), ml_toma, nuevo_checkpoint_ml)
-    fecha_hora_toma = datetime.combine(fecha_toma, hora_toma)
+    enviar_toma_api(fecha_toma.strftime('%d/%m/%Y'), hora_toma.strftime('%H:%M:%S'), ml_toma)
+    fecha_hora_toma = datetime.combine(fecha_toma, hora_toma).tz_localize('Europe/Madrid')
     df_plan = obtener_datos_tabla()
-    
-    if fecha_toma not in df_plan["Fecha"].values:
+
+    df_plan["Fecha"]=df_plan["Fecha"].dt.strftime('%Y-%m-%d')
+
+
+    # fecha_toma_str = fecha_toma.strftime('%Y-%m-%d')
+    # fechas_plan_str = set(df_plan["Fecha"].dt.strftime('%Y-%m-%d'))
+    if fecha_toma.strftime('%Y-%m-%d') not in df_plan["Fecha"].values:
         print(f"ERROR: La fecha {fecha_toma} no se encontró en el plan.")
     else:
-        # 1. Actualizar "Real (ml)" en el plan y guardarlo
-        df_plan.loc[df_plan["Fecha"] == fecha_toma, "Real (ml)"] += ml_toma
-        save_plan_history_data(df_plan) # <- CORREGIDO
+        df_plan.loc[df_plan['Fecha'] == fecha_toma.strftime('%Y-%m-%d'), 'Real (ml)'] += ml_toma
+
+        save_plan_history_data(df_plan)  # <- CORREGIDO
         # 3. Actualizar los valores del checkpoint EN la configuración existente
-        save_config({"checkpoint_fecha": fecha_hora_toma.isoformat(),
+        save_config({"checkpoint_fecha": ahora.isoformat() ,
                      "checkpoint_ml"   : nuevo_checkpoint_ml})
         print(f"Toma de {ml_toma} ml guardada para el día {fecha_toma}.")
         print(f"Checkpoint en 'Config' actualizado a fecha {fecha_hora_toma} con {nuevo_checkpoint_ml:.2f}ml.")
@@ -131,14 +152,14 @@ def borrar_toma(fecha_toma, cantidad):
     Resta una cantidad de una toma. No revierte el checkpoint.
     """
     df_plan = obtener_datos_tabla()
-    
+
     if fecha_toma not in df_plan["Fecha"].values:
         print(f"ERROR: La fecha {fecha_toma} no se encontró en el plan.")
         return df_plan
             
     df_plan.loc[df_plan["Fecha"] == fecha_toma, "Real (ml)"] -= cantidad
     save_plan_history_data(df_plan) # <- CORREGIDO
-
+    df_plan.loc[df_plan["Fecha"] == fecha_toma, "Real (ml)"] -= cantidad
     print(f"Toma de {cantidad}ml borrada para el día {fecha_toma}.")
     print("ADVERTENCIA: La lógica del checkpoint no se revierte automáticamente al borrar.")
             
