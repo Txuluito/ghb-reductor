@@ -3,59 +3,56 @@ import pandas as pd
 import database
 import time
 import logic
+from config import config
+from logic import ahora
 
-def render(df):
-    st.subheader("📜 Historial Detallado de Tomas")
+class HistorialTab:
+    def __init__(self, df):
+        self.df = df
 
-    if not df.empty:
-        # 1. Preparar los datos
-        df_hist = df.copy()
+    def _formatear_delta(self, x):
+        if pd.isnull(x): return "---"
+        total_segundos = int(x.total_seconds())
+        horas = total_segundos // 3600
+        minutos = (total_segundos % 3600) // 60
+        return f"{horas}h {minutos}min"
 
-        # El DataFrame ya viene ordenado, pero aseguramos cronología para el cálculo de diff
-        df_hist = df_hist.sort_values('timestamp', ascending=True)
-        df_hist['diff'] = df_hist['timestamp'].diff()
+    def render_tabla_historial(self):
+        if not self.df.empty:
+            df_hist = self.df.copy().sort_values('timestamp', ascending=True)
+            df_hist['diff'] = df_hist['timestamp'].diff()
+            df_hist['Intervalo Real'] = df_hist['diff'].apply(self._formatear_delta)
 
-        def formatear_delta(x):
-            if pd.isnull(x): return "---"
-            total_segundos = int(x.total_seconds())
-            horas = total_segundos // 3600
-            minutos = (total_segundos % 3600) // 60
-            return f"{horas}h {minutos}min"
+            df_display = df_hist.sort_values('timestamp', ascending=False)
+            df_display['Fecha'] = df_display['timestamp'].dt.strftime('%d/%m/%Y')
+            df_display['Hora'] = df_display['timestamp'].dt.strftime('%H:%M')
+            df_display['Dosis'] = df_display['ml'].apply(lambda x: f"{x:.2f} ml")
 
-        df_hist['Intervalo Real'] = df_hist['diff'].apply(formatear_delta)
+            st.dataframe(df_display[['Fecha', 'Hora', 'Dosis', 'Intervalo Real']], width='stretch', hide_index=True)
+        else:
+            st.info("No hay datos registrados todavía.")
 
-        # 2. Preparar tabla para visualización (más reciente primero)
-        df_display = df_hist.sort_values('timestamp', ascending=False).copy()
-        df_display['Fecha'] = df_display['timestamp'].dt.strftime('%d/%m/%Y')
-        df_display['Hora'] = df_display['timestamp'].dt.strftime('%H:%M')
-        df_display['Cantidad'] = df_display['ml'].apply(lambda x: f"{x:.2f} ml")
-
-        df_final = df_display[['Fecha', 'Hora', 'Cantidad', 'Intervalo Real']]
-
-        st.dataframe(df_final, width='stretch', hide_index=True)
-
-        # 3. Métricas de Logros
+    def render_metricas_logros(self):
         st.markdown("---")
-        col_h1, col_h2 = st.columns(2)
-        df_valid_diffs = df_hist.dropna(subset=['diff'])
+        if not self.df.empty:
+            df_valid_diffs = self.df.copy().sort_values('timestamp', ascending=True)
+            df_valid_diffs['diff'] = df_valid_diffs['timestamp'].diff().dropna()
 
-        if not df_valid_diffs.empty:
-            media_int_total = df_valid_diffs['diff'].mean()
-            max_int = df_valid_diffs['diff'].max()
-            col_h1.metric("Intervalo Medio Real", formatear_delta(media_int_total))
-            col_h2.metric("Récord de espera", formatear_delta(max_int))
+            if not df_valid_diffs['diff'].empty:
+                col_h1, col_h2 = st.columns(2)
+                media_int_total = df_valid_diffs['diff'].mean()
+                max_int = df_valid_diffs['diff'].max()
+                col_h1.metric("Intervalo Medio Real", self._formatear_delta(media_int_total))
+                col_h2.metric("Récord de espera", self._formatear_delta(max_int))
 
-        # 4. Zona de Borrado y Ajuste de Saldo
+    def render_zona_peligro(self):
         st.markdown("---")
         with st.expander("⚠️ ZONA DE PELIGRO", expanded=False):
             c_del, c_bal = st.columns(2)
-            
             with c_del:
                 st.write("¿La última toma es un error?")
                 if st.button("🗑️ BORRAR ÚLTIMA TOMA"):
-                    # Llamamos a la función de borrado que debe estar en database.py
-                    exito = database.eliminar_ultima_toma()
-                    if exito:
+                    if database.eliminar_ultima_toma():
                         st.success("Fila eliminada correctamente.")
                         time.sleep(1)
                         st.rerun()
@@ -64,51 +61,38 @@ def render(df):
             
             with c_bal:
                 st.write("Ajuste manual de saldo")
-                nuevo_saldo = st.number_input("Nuevo Saldo Disponible:", value=0.0, step=0.1)
-                if st.button("💾 ACTUALIZAR SALDO"):
-                    # Para ajustar el saldo, recalculamos el checkpoint_ingresos necesario
-                    # Saldo = Ingresos_Totales - Gastos_Totales
-                    # Ingresos_Totales = Nuevo_Saldo + Gastos_Totales
-                    # Checkpoint_Ingresos = Ingresos_Totales (y reseteamos fecha a ahora)
-                    
-                    gastos_totales = df['ml'].sum()
-                    nuevo_checkpoint_ingresos = nuevo_saldo + gastos_totales
-                    ahora_ajuste = pd.Timestamp.now(tz='Europe/Madrid')
-                    
-                    logic.save_config({
-                        "checkpoint_ingresos": nuevo_checkpoint_ingresos,
-                        "checkpoint_fecha": ahora_ajuste.isoformat()
+                # Obtenemos el plan para saber el saldo actual y proponerlo
+                nuevo_saldo = st.number_input("Nuevo Saldo Disponible:", value=logic.mlAcumulados(), step=0.1, format="%.2f")
+                if st.button("🔧 Aplicar Ajuste de Saldo"):
+                    gastos_totales = self.df['ml'].sum()
+                    nuevo_checkpoint_ml = nuevo_saldo + gastos_totales
+                    database.save_config({
+                        "checkpoint_ml": nuevo_checkpoint_ml,
+                        "checkpoint_fecha": ahora.isoformat()
                     })
+                    st.cache_data.clear()
                     st.success(f"Saldo actualizado a {nuevo_saldo:.2f} ml")
                     time.sleep(1)
                     st.rerun()
 
-    else:
-        st.info("No hay datos registrados todavía.")
+    def render_filtros_visualizacion(self):
+        st.markdown("---")
+        st.subheader("📅 Filtros de Visualización")
+        if not self.df.empty:
+            c_f1, c_f2 = st.columns(2)
+            fecha_inicio = c_f1.date_input("Fecha Inicio", self.df['timestamp'].min().date())
+            fecha_fin = c_f2.date_input("Fecha Fin", ahora.date())
 
-    st.markdown("---")
+            mask = (self.df['timestamp'].dt.date >= fecha_inicio) & (self.df['timestamp'].dt.date <= fecha_fin)
+            df_filtrado = self.df.loc[mask]
+            resumen_filtrado = logic.calcular_resumen_bloques(df_filtrado)
 
-    # Filtros y tablas que estaban en tab_reductor
-    st.subheader("📅 Filtros de Visualización")
-    c_f1, c_f2 = st.columns(2)
-    with c_f1:
-        fecha_inicio = st.date_input("Fecha Inicio", df['timestamp'].min().date() if not df.empty else pd.Timestamp.now().date())
-    with c_f2:
-        fecha_fin = st.date_input("Fecha Fin", pd.Timestamp.now(tz='Europe/Madrid').date())
-
-    mask = (df['timestamp'].dt.date >= fecha_inicio) & (df['timestamp'].dt.date <= fecha_fin)
-    df_filtrado = df.loc[mask]
-    resumen_filtrado = logic.calcular_resumen_bloques(df_filtrado)
-
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        st.subheader("📊 Resumen Bloques")
-        st.dataframe(resumen_filtrado.style.format({
-            'total_ml': '{:.2f}',
-            'media_ml': '{:.2f}'
-        }), width='stretch')
-    with col_t2:
-        st.subheader("🕒 Tomas Filtradas")
-        df_display_filtrado = df_filtrado[['fecha', 'hora', 'ml']].copy()
-        df_display_filtrado['ml'] = df_display_filtrado['ml'].map('{:.2f}'.format)
-        st.dataframe(df_display_filtrado, width='stretch', hide_index=True)
+            col_t1, col_t2 = st.columns(2)
+            with col_t1:
+                st.subheader("📊 Resumen Bloques")
+                st.dataframe(resumen_filtrado, width='stretch')
+            with col_t2:
+                st.subheader("🕒 Tomas Filtradas")
+                st.dataframe(df_filtrado[['fecha', 'hora', 'ml']], width='stretch', hide_index=True)
+        else:
+            st.info("No hay datos para filtrar.")

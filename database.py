@@ -1,19 +1,20 @@
+import logging
+
 import streamlit as st
 import pandas as pd
-import numpy as np
 import os.path
 import time
 import requests
-import plotly.graph_objects as go
 import json
+
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from plotly.subplots import make_subplots
 
-URL_WEB_APP = "https://script.google.com/macros/s/AKfycbyjfrStGaO5O5j1JMSUFW2aN4u9LPcbe1-Hz96OUUmYMrF0odJ_Txcc40fhGiegCx3j/exec"
+
+URL_WEB_APP = "https://script.google.com/macros/s/AKfycbwUNNchR4XdVwAqkwlfRQ17GjrV3WPqx6bNlPiSRwt31FDk_USG2HAsep06JTLa4X_Q/exec"
 def get_excel_data():
     # Usamos el ID de tu hoja que ya tenías
     SHEET_ID = "18KYPnVSOQF6I2Lm5P1j5nFx1y1RXSmfMWf9jBR2WJ-Q"
@@ -30,12 +31,9 @@ def get_excel_data():
         df['timestamp'] = df['timestamp'].dt.tz_localize('Europe/Madrid')
 
     return df.sort_values('timestamp', ascending=False)
-
-
-def enviar_toma_api( fecha_str, hora_str, cantidad, saldo=None):
-    payload = {"fecha": fecha_str, "hora": hora_str, "ml": cantidad, "saldo": saldo}
+def enviar_toma_api( fecha_str, hora_str, cantidad):
+    payload = {"fecha": fecha_str, "hora": hora_str, "ml": cantidad}
     return requests.post(URL_WEB_APP, json=payload)
-
 def get_plan_history_data():
     """Obtiene el historial del plan desde Google Sheets."""
     try:
@@ -52,7 +50,6 @@ def get_plan_history_data():
     except Exception as e:
         print(f"Error cargando historial plan: {e}")
     return pd.DataFrame()
-
 def save_plan_history_data(df):
     """Guarda el historial del plan en Google Sheets."""
     try:
@@ -61,9 +58,9 @@ def save_plan_history_data(df):
         requests.post(URL_WEB_APP, json=payload, timeout=15)
     except Exception as e:
         print(f"Error guardando historial plan: {e}")
-
-def get_remote_config():
+def get_config():
     """Obtiene la configuración desde la hoja 'Config'."""
+    logging.warning("Cargando configuracion")
     try:
         params = {"action": "get_config"}
         response = requests.get(URL_WEB_APP, params=params, timeout=15)
@@ -78,7 +75,7 @@ def get_remote_config():
         print(f"Error cargando config remota: {e}")
     return {}
 
-def save_remote_config(data):
+def save_config(data):
     """Guarda/Actualiza la configuración en la hoja 'Config'."""
     try:
         payload = {"action": "save_config", "data": data}
@@ -87,7 +84,6 @@ def save_remote_config(data):
     except Exception as e:
         print(f"Error guardando config remota: {e}")
         return False
-
 def eliminar_ultima_toma():
     try:
         # Enviamos una petición POST con un parámetro especial para indicar borrado
@@ -104,7 +100,6 @@ def eliminar_ultima_toma():
     except Exception as e:
         print(f"Error al eliminar: {e}")
         return False
-
 def get_google_fit_data():
     creds = None
     scopes = ['https://www.googleapis.com/auth/fitness.heart_rate.read']
