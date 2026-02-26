@@ -11,7 +11,7 @@ from tabs.tab_toma import TomaTab
 # Configuración
 st.set_page_config(page_title="Reductor GHB", layout="wide")
 st.title("📉 Reductor GHB")
-
+# try:
 excel_data = database.get_excel_data()
 t1, t2, t3,t4 = st.tabs(["📉 Reductor", "📅 Planificación", "📊 Análisis", "📜 Historial"])
 with t1:
@@ -37,4 +37,8 @@ with t4:
     tab.render_metricas_logros()
     tab.render_zona_peligro()
     tab.render_filtros_visualizacion()
-
+# except Exception as e:
+#     print(f"Error no controlado: {e}")
+#     st.error(f"Error: {e}")
+#     st.cache_data.clear()
+#     st.rerun()

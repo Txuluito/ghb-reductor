@@ -36,7 +36,7 @@ class AnalisisTab:
                                  name="Nivel Estimado (ml)", fill='tozeroy',
                                  line=dict(color="rgba(0,150,255,0.5)")), secondary_y=True)
         fig.update_layout(height=400, hovermode="x unified", margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     def _render_grafica_tendencia(self):
         st.markdown("---")
@@ -47,7 +47,7 @@ class AnalisisTab:
             fig_bar.add_trace(go.Bar(x=df_t.index, y=df_t['total_ml'], name="Consumo Diario"))
             fig_bar.add_trace(go.Scatter(x=df_t.index, y=[media_3d] * len(df_t), name="Media", line=dict(dash='dash', color='red')))
             fig_bar.update_layout(height=300, title="Consumo últimos 3 días")
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar, width='stretch')
     def render_grafica(self, hl: float, ka: float):
         try:
             df_fit = database.get_google_fit_data()

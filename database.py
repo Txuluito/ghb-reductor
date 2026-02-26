@@ -31,8 +31,8 @@ def get_excel_data():
         df['timestamp'] = df['timestamp'].dt.tz_localize('Europe/Madrid')
 
     return df.sort_values('timestamp', ascending=False)
-def enviar_toma_api( fecha_str, hora_str, cantidad, saldo=None):
-    payload = {"fecha": fecha_str, "hora": hora_str, "ml": cantidad, "saldo": saldo}
+def enviar_toma_api( fecha_str, hora_str, cantidad):
+    payload = {"fecha": fecha_str, "hora": hora_str, "ml": cantidad}
     return requests.post(URL_WEB_APP, json=payload)
 def get_plan_history_data():
     """Obtiene el historial del plan desde Google Sheets."""
@@ -74,6 +74,7 @@ def get_config():
     except Exception as e:
         print(f"Error cargando config remota: {e}")
     return {}
+
 def save_config(data):
     """Guarda/Actualiza la configuración en la hoja 'Config'."""
     try:

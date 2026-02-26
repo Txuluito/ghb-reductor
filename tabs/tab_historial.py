@@ -28,7 +28,7 @@ class HistorialTab:
             df_display['Hora'] = df_display['timestamp'].dt.strftime('%H:%M')
             df_display['Dosis'] = df_display['ml'].apply(lambda x: f"{x:.2f} ml")
 
-            st.dataframe(df_display[['Fecha', 'Hora', 'Dosis', 'Intervalo Real']], use_container_width=True, hide_index=True)
+            st.dataframe(df_display[['Fecha', 'Hora', 'Dosis', 'Intervalo Real']], width='stretch', hide_index=True)
         else:
             st.info("No hay datos registrados todavía.")
 
@@ -62,14 +62,12 @@ class HistorialTab:
             with c_bal:
                 st.write("Ajuste manual de saldo")
                 # Obtenemos el plan para saber el saldo actual y proponerlo
-                saldo = logic.saldo(self.df)
-
-                nuevo_saldo = st.number_input("Nuevo Saldo Disponible:", value=saldo, step=0.1, format="%.2f")
+                nuevo_saldo = st.number_input("Nuevo Saldo Disponible:", value=logic.mlAcumulados(), step=0.1, format="%.2f")
                 if st.button("🔧 Aplicar Ajuste de Saldo"):
                     gastos_totales = self.df['ml'].sum()
-                    nuevo_checkpoint_ingresos = nuevo_saldo + gastos_totales
+                    nuevo_checkpoint_ml = nuevo_saldo + gastos_totales
                     database.save_config({
-                        "checkpoint_ingresos": nuevo_checkpoint_ingresos,
+                        "checkpoint_ml": nuevo_checkpoint_ml,
                         "checkpoint_fecha": ahora.isoformat()
                     })
                     st.cache_data.clear()
@@ -92,9 +90,9 @@ class HistorialTab:
             col_t1, col_t2 = st.columns(2)
             with col_t1:
                 st.subheader("📊 Resumen Bloques")
-                st.dataframe(resumen_filtrado, use_container_width=True)
+                st.dataframe(resumen_filtrado, width='stretch')
             with col_t2:
                 st.subheader("🕒 Tomas Filtradas")
-                st.dataframe(df_filtrado[['fecha', 'hora', 'ml']], use_container_width=True, hide_index=True)
+                st.dataframe(df_filtrado[['fecha', 'hora', 'ml']], width='stretch', hide_index=True)
         else:
             st.info("No hay datos para filtrar.")
