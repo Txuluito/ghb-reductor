@@ -1,11 +1,5 @@
 import streamlit as st
 import pandas as pd
-import database
-import time
-import logic
-
-from state import invalidate_config
-
 
 class HistorialTab:
     def __init__(self, df):

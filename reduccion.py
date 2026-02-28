@@ -1,0 +1,45 @@
+import pandas as pd
+import streamlit as st
+from datetime import datetime, timedelta
+
+import reduccion_por_tiempo
+import reduccion_por_dosis
+# Importa las funciones de base de datos
+from database import get_plan_history_data, save_plan_history_data, get_config, save_config, enviar_toma_api
+
+def guardar_toma(fecha_toma, hora_toma, ml_toma):
+    enviar_toma_api(fecha_toma.strftime('%d/%m/%Y'), hora_toma.strftime('%H:%M:%S'), ml_toma)
+    reduccion_por_tiempo.add_toma(fecha_toma, ml_toma)
+    reduccion_por_dosis.add_toma(fecha_toma, ml_toma)
+
+def crear_nuevo_plan(ml_dia_actual, ml_dosis_actual, intervalo_horas,reduccion_diaria):
+    save_plan_history_data(reduccion_por_tiempo.crear_tabla(ml_dia_actual, reduccion_diaria, intervalo_horas), sheet_name="PlanHistory")
+    save_plan_history_data(reduccion_por_dosis.crear_tabla(ml_dosis_actual, reduccion_diaria, intervalo_horas), sheet_name="PlanHistoryDosis")
+    save_config({
+        "plan.fecha_inicio_plan": pd.Timestamp.now(tz='Europe/Madrid').isoformat(),
+        "plan.checkpoint_fecha": pd.Timestamp.now(tz='Europe/Madrid').isoformat(),
+        "plan.reduccion_diaria": reduccion_diaria,
+        "consumo.ml_dia": ml_dia_actual,
+        "consumo.intervalo_horas": intervalo_horas,
+        "consumo.ml_dosis": ml_dosis_actual,
+        "dosis.checkpoint_ml": 0.0,
+        "tiempos.checkpoint_ml": 0.0
+    })
+
+    print(f"Nuevo plan por dosis guardado.")
+
+def replanificar(ml_dia_actual, ml_dosis_actual, intervalo_horas,reduccion_diaria):
+   reduccion_por_tiempo.replanificar(ml_dia_actual, reduccion_diaria, intervalo_horas)
+   reduccion_por_dosis.replanificar(ml_dosis_actual, reduccion_diaria, intervalo_horas)
+   save_config({
+       "plan.checkpoint_fecha": pd.Timestamp.now(tz='Europe/Madrid').isoformat(),
+       "plan.reduccion_diaria": reduccion_diaria,
+       "consumo.ml_dia": ml_dia_actual,
+       "consumo.intervalo_horas": intervalo_horas,
+       "consumo.ml_dosis": ml_dosis_actual,
+       "tiempos.checkpoint_ml": reduccion_por_tiempo.mlAcumulados(),
+       "tiempos.ml_dosis": ml_dosis_actual,
+   })
+
+
+

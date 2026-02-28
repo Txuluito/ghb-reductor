@@ -2,71 +2,13 @@ import streamlit as st
 import pandas as pd
 import database
 import logic
+import reduccion
 import reduccion_por_tiempo
 from state import invalidate_config
 class PlanificacionTiempoTab:
-    def __init__(self, df):
-        self.df = df
-
-    def render_configurar_plan(self):
-        with st.expander("📈 CONFIGURAR PLAN DE REDUCCIÓN"):
-            c1, c2, c3 = st.columns(3)
-
-            # Control para la cantidad inicial
-            c1.number_input(
-                "Cantidad Inicial (ml/día)",
-                value=float(st.session_state.config.get("ml_iniciales_plan", 15.0)),
-                step=0.5,
-                key = "cantidad_inicial"
-            )
-
-            # Control para la reducción diaria
-            c2.number_input(
-                "Reducción Diaria (ml)",
-                value=float(st.session_state.config.get("reduccion_diaria", 1)),
-                step=0.05,
-                format="%.2f",
-                key = "reduccion_diaria"
-            )
-
-            # Control para la dosis por defecto
-
-            c3.number_input(
-                "Dosis Defecto (ml)",
-                value= float(st.session_state.config.get("tiempos.dosis_media", 3.2)),
-                step=0.1,
-                key = "tiempos.dosis_media"
-            )
-
-            c1, c2 = st.columns(2)
-
-            if c1.button("💾 ACTUALIZAR PLAN"):
-                reduccion_por_tiempo.replanificar(
-                    st.session_state.get("tiempos.dosis_media"),
-                    st.session_state.get("reduccion_diaria"),
-                    st.session_state.get("cantidad_inicial"),
-                    reduccion_por_tiempo.mlAcumulados())
-                st.success("Configuración del plan guardada.")
-                invalidate_config()
-                st.cache_data.clear()
-                st.rerun()
-            if c2.button("💾 NUEVO PLAN"):
-                reduccion_por_tiempo.crear_nuevo_plan(
-                    st.session_state.get("tiempos.dosis_media"),
-                    st.session_state.get("reduccion_diaria"),
-                    st.session_state.get("cantidad_inicial"))
-                # logic.crear_plan(self.df,config)
-                invalidate_config()
-                st.cache_data.clear()
-                st.rerun()
-
     def render(self):
-        self.render_configurar_plan()
-        self.render_tabla_plan()
-
-    def render_tabla_plan(self):
-        if st.session_state.config.get("fecha_inicio_plan"):
-            df_seg = reduccion_por_tiempo.obtener_datos_tabla()
+        if st.session_state.config.get("plan.fecha_inicio_plan"):
+            df_seg = reduccion_por_tiempo.obtener_tabla()
             df_seg['Fecha'] = df_seg['Fecha'].dt.strftime('%d/%m/%Y')
             st.dataframe(
                 df_seg.style.apply(

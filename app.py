@@ -2,6 +2,7 @@ import streamlit as st
 import database
 from tabs.tab_analisis import AnalisisTab
 from tabs.tab_historial import HistorialTab
+from tabs.tab_reduccion import ReduccionTab
 from tabs.tab_reduccion_por_tiempo import PlanificacionTiempoTab
 from tabs.tab_reduccion_por_dosis import PlanificacionDosisTab
 from tabs.tab_toma import TomaTab
@@ -20,7 +21,7 @@ st.set_page_config(page_title="Reductor GHB", layout="wide")
 st.title("📉 Reductor GHB")
 # try:
 excel_data = database.get_excel_data()
-t1, t2, t3, t4, t5 = st.tabs(["📉 Tomas", "⏱️ Reducción por Tiempos", "💊 Reducción por Dosis", "🧬 Bio-Análisis", "📜 Historial"])
+t1, t2, t3, t4, t5, t6 = st.tabs(["📉 Tomas", "⏱️ Planificador","⏱️ Reducción por Tiempos", "💊 Reducción por Dosis", "🧬 Bio-Análisis", "📜 Historial"])
 with t1:
     tab = TomaTab(excel_data)
     st.header("📉 Panel de Tomas")
@@ -28,19 +29,23 @@ with t1:
     tab.mostrar_metricas()
     st.markdown("---")
 with t2:
-    st.header("⏱️ Planificación: Reducción por Tiempo")
-    tab = PlanificacionTiempoTab(excel_data)
+    st.header("⏱️ Planificación:")
+    tab = ReduccionTab()
     tab.render()
 with t3:
-    st.header("💊 Planificación: Reducción por Dosis")
-    tab = PlanificacionDosisTab(excel_data)
+    st.header("⏱️ Planificación: Reducción por Tiempo")
+    tab = PlanificacionTiempoTab()
     tab.render()
 with t4:
+    st.header("💊 Planificación: Reducción por Dosis")
+    tab = PlanificacionDosisTab()
+    tab.render()
+with t5:
     st.subheader("🧬 Bio-Análisis y Calibración")
     tab = AnalisisTab(excel_data)
     ka, hl = tab.render_parametros_simulacion()
     tab.render_grafica(hl, ka)
-with t5:
+with t6:
     st.subheader("📜 Historial Detallado de Tomas")
     tab = HistorialTab(excel_data)
     tab.render_tabla_historial()
