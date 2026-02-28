@@ -95,8 +95,23 @@ class TomaTab:
         else:
              saldo = reduccion_por_dosis.mlAcumulados()
              # ... (lógica dosis) ...
-             dosis_target = float(st.session_state.config.get("dosis.ml_dia", 3.0))
-             intervalo_horas = float(st.session_state.config.get("dosis.intervalo_horas", 2.0))
+             # Corregido: consumo.ml_dosis para la dosis del plan, no ml_dia
+             dosis_target = float(st.session_state.config.get("consumo.ml_dosis", 3.0))
+             # Corregido: consumo.intervalo_horas
+             intervalo_horas_str = st.session_state.config.get("consumo.intervalo_horas", "02:00")
+             try:
+                 # Intentar convertir string de hora "HH:MM" a float de horas
+                 # Si ya viene como float (ej: 2.5), lo manejamos
+                 if isinstance(intervalo_horas_str, (int, float)):
+                     intervalo_horas = float(intervalo_horas_str)
+                 elif isinstance(intervalo_horas_str, str) and ":" in intervalo_horas_str:
+                     h, m = map(int, intervalo_horas_str.split(":"))
+                     intervalo_horas = h + m / 60.0
+                 else:
+                     # Fallback si el formato es desconocido
+                     intervalo_horas = float(intervalo_horas_str)
+             except (ValueError, TypeError):
+                 intervalo_horas = 2.0 # Valor por defecto seguro
 
              tasa_gen = dosis_target / intervalo_horas if intervalo_horas > 0 else 0
 

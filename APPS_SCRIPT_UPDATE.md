@@ -1,6 +1,6 @@
 # Actualización necesaria en Google Apps Script
 
-Para que el sistema funcione correctamente con las dos hojas de planificación ("PlanHistory" y "PlanHistoryDosis"), debes asegurarte de que tu script de Google Apps Script maneje el parámetro `sheetName`.
+Para que el sistema funcione correctamente con las dos hojas de planificación ("Plan Tiempo" y "Plan Dosis"), debes asegurarte de que tu script de Google Apps Script maneje el parámetro `sheetName`.
 
 Aquí tienes un ejemplo de cómo debería lucir la lógica para `get_plan_history` y `save_plan_history`:
 
@@ -9,8 +9,8 @@ function doGet(e) {
   var action = e.parameter.action;
   
   if (action == "get_plan_history") {
-    // Leemos el parámetro sheetName, por defecto "PlanHistory"
-    var sheetName = e.parameter.sheetName || "PlanHistory";
+    // Leemos el parámetro sheetName, por defecto "Plan Tiempo"
+    var sheetName = e.parameter.sheetName || "Plan Tiempo";
     return getPlanHistory(sheetName);
   }
   // ... otros actions ...
@@ -21,8 +21,8 @@ function doPost(e) {
   var action = request.action;
   
   if (action == "save_plan_history") {
-    // Leemos el parámetro sheetName, por defecto "PlanHistory"
-    var sheetName = request.sheetName || "PlanHistory";
+    // Leemos el parámetro sheetName, por defecto "Plan Tiempo"
+    var sheetName = request.sheetName || "Plan Tiempo";
     return savePlanHistory(request.data, sheetName);
   }
   // ... otros actions ...

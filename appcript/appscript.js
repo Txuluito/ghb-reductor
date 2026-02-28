@@ -20,8 +20,8 @@ function doPost(e) {
   const action = requestData.action;
 
   if (action == "get_plan_history") {
-    // Leemos el parámetro sheetName, por defecto "PlanHistory"
-    var sheetName = e.parameter.sheetName || "PlanHistory";
+    // Leemos el parámetro sheetName, por defecto "Plan Tiempo"
+    var sheetName = e.parameter.sheetName || "Plan Tiempo";
     return getPlanHistory(sheetName);
   }else if (action == "delete_last") {
     return deleteLastRow();

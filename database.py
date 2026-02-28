@@ -35,7 +35,7 @@ def get_excel_data():
 def enviar_toma_api( fecha_str, hora_str, cantidad):
     payload = {"fecha": fecha_str, "hora": hora_str, "ml": cantidad}
     return requests.post(URL_WEB_APP, json=payload)
-def get_plan_history_data(sheet_name="PlanHistory"):
+def get_plan_history_data(sheet_name="Plan Tiempo"):
     """Obtiene el historial del plan desde Google Sheets."""
     try:
         params = {"action": "get_plan_history", "sheetName": sheet_name}
@@ -52,7 +52,7 @@ def get_plan_history_data(sheet_name="PlanHistory"):
         print(f"Error cargando historial plan: {e}")
     return pd.DataFrame()
 
-def save_plan_history_data(df, sheet_name="PlanHistory"):
+def save_plan_history_data(df, sheet_name="Plan Tiempo"):
     """Guarda el historial del plan en Google Sheets."""
     try:
         data_list = df.to_dict(orient='records')

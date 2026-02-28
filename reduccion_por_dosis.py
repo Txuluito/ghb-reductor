@@ -1,15 +1,25 @@
-import pandas as pd
-import streamlit as st
 from datetime import datetime, timedelta
 
+import pandas as pd
+import streamlit as st
 from pandas import DataFrame
 
-from database import get_plan_history_data, save_plan_history_data, get_config, save_config, enviar_toma_api
+from database import get_plan_history_data, save_plan_history_data, save_config
+
 
 def mlAcumulados():
     if st.session_state.config.get("plan.checkpoint_fecha"):
         dosis_actual = float(st.session_state.config.get("dosis.ml_dia", 3.0))
-        intervalo = float(st.session_state.config.get("dosis.intervalo_horas", 2.0))
+
+        intervalo_val = st.session_state.config.get("dosis.intervalo_horas", 2.0)
+        # Asegurar conversión a float si viene como time o string
+        if hasattr(intervalo_val, 'hour'):
+            intervalo = intervalo_val.hour + intervalo_val.minute / 60.0
+        else:
+            try:
+                intervalo = float(intervalo_val)
+            except:
+                intervalo = 2.0
 
         # Tasa de generación (ml/hora) = Dosis / Intervalo
         tasa_generacion = dosis_actual / intervalo if intervalo > 0 else 0
@@ -28,83 +38,83 @@ def mlAcumulados():
         return float(checkpoint_ml + generado)
     else:
         return float(0)
-def crear_tabla(ml_dosis, reduccion_dosis, intervalo_horas):
+def crear_tabla(reduccion_diaria, ml_dia_actual, intervalo_horas):
     tabla = []
     fecha_dia = datetime.now()
-    dosis_actual = float(ml_dosis)
-    reduccion_dosis = float(reduccion_dosis)
-    tomas_dia = 24.0 / intervalo_horas
-    
+    objetivo_dia = float(ml_dia_actual)
+    reduccion_diaria = float(reduccion_diaria)
+
+    # Manejar intervalo_horas si viene como objeto time o string
+    intervalo_val = 0.0
+    if isinstance(intervalo_horas, (int, float)):
+        intervalo_val = float(intervalo_horas)
+    elif hasattr(intervalo_horas, 'hour') and hasattr(intervalo_horas, 'minute'):
+        intervalo_val = intervalo_horas.hour + intervalo_horas.minute / 60.0
+
+    tomas_dia = 24 / intervalo_val if intervalo_val > 0 else 0
+    horas_int = int(intervalo_val)
+    mins_int = int((intervalo_val - horas_int) * 60)
+
     # Límite de seguridad
-    max_dias = 365
     dias_count = 0
-
-    while dosis_actual >= 0.1 and dias_count < max_dias:
-        total_dia = dosis_actual * tomas_dia
-
+    while objetivo_dia >= 0.1 and dias_count < 365:
         tabla.append({
             "Fecha": fecha_dia.strftime("%Y-%m-%d"),
-            "Objetivo (ml)": round(total_dia, 2),
+            "Objetivo (ml)": round(objetivo_dia, 2),
+            "Reducción Diaria": round(reduccion_diaria, 2),
+            "Dosis": round(objetivo_dia / tomas_dia, 2) if tomas_dia > 0 else 0,
+            "Intervalo": f"{horas_int}h {mins_int}m",
             "Real (ml)": 0.0,
-            "Dosis Obj (ml)": round(dosis_actual, 3),
-            "Intervalo": f"{intervalo_horas}h",
-            "Reducción Dosis": round(reduccion_dosis, 3),
             "Estado": ""
         })
         
-        dosis_actual = max(0.0, dosis_actual - reduccion_dosis)
+        objetivo_dia = max(0.0, objetivo_dia - reduccion_diaria)
         fecha_dia += timedelta(days=1)
         dias_count += 1
     return pd.DataFrame(tabla)
-    save_plan_history_data(pd.DataFrame(tabla), sheet_name="PlanHistoryDosis")
 
 def obtener_tabla():
     """
     (LEE DATOS de 'PlanHistory')
     Obtiene los datos del plan, los convierte a tipos correctos y calcula el estado.
     """
-    df = get_plan_history_data(sheet_name="PlanHistoryDosis")
+    df = get_plan_history_data(sheet_name="Plan Dosis")
     if df.empty:
         return pd.DataFrame()
 
-    # Asegurar tipos numéricos
-    cols_num = ['Objetivo (ml)', 'Real (ml)', 'Dosis Obj (ml)', 'Reducción Dosis']
-    for col in cols_num:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-            
-    if 'Fecha' in df.columns:
-        # Convertir a datetime
-        df['Fecha'] = pd.to_datetime(df['Fecha'])
-        # Si no tiene zona horaria, se la ponemos (asumimos UTC o local y convertimos)
-        if df['Fecha'].dt.tz is None:
-             # Si asumimos que vienen como string "YYYY-MM-DD", al parsear son naive.
-             # Las localizamos a Madrid directamente o convertimos si fuera necesario.
-             # Para simplificar y ser consistentes con el resto de la app:
-             df['Fecha'] = df['Fecha'].dt.tz_localize('Europe/Madrid')
-        else:
-             df['Fecha'] = df['Fecha'].dt.tz_convert('Europe/Madrid')
+    for col in ['Objetivo (ml)', 'Real (ml)', 'Reducción Diaria', 'Dosis']:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    hoy = datetime.now().date()
-    
+    # Manejo robusto de fechas
+    df['Fecha'] = pd.to_datetime(df['Fecha'])
+
+    # Si las fechas ya tienen zona horaria (tz-aware), convertimos directamente
+    if df['Fecha'].dt.tz is not None:
+         df['Fecha'] = df['Fecha'].dt.tz_convert('Europe/Madrid')
+    else:
+         # Si no tienen zona horaria (tz-naive), las localizamos primero
+         # Asumimos que vienen en UTC o sin zona, las tratamos como UTC y luego Madrid
+         df['Fecha'] = df['Fecha'].dt.tz_localize('UTC').dt.tz_convert('Europe/Madrid')
+
+    # fecha_actual_str = datetime.now().strftime("%Y-%m-%d")
+    hoy = datetime.now().date() # Obtener la fecha de HOY (objeto date) una sola vez
     def calcular_estado(row):
-        fecha_row = row["Fecha"].date()
-        if fecha_row < hoy:
-            # Ciclo cerrado
+        if row["Fecha"].date() < hoy:
+            # Ciclo cerrado (días anteriores)
             if row['Real (ml)'] <= row['Objetivo (ml)'] + 0.5:
                 return "✅ Sí"
             else:
                 return "❌ No"
-        elif fecha_row == hoy:
-            # Ciclo en curso
+        elif row["Fecha"].date() == hoy:
+            # Ciclo en curso (hoy)
             return "⏳ En curso"
         else:
             # Días futuros
             return "🔮 Futuro"
 
-    if 'Fecha' in df.columns:
-        df['Estado'] = df.apply(calcular_estado, axis=1)
 
+    df['Estado'] = df.apply(calcular_estado, axis=1)
+    df['Dosis'] = df['Dosis'].map('{:.2f}'.format)
     return df
 def add_toma(fecha_toma, ml_toma) -> DataFrame:
     ml_bote=mlAcumulados()
@@ -130,7 +140,7 @@ def add_toma(fecha_toma, ml_toma) -> DataFrame:
         cols_to_drop = ['Fecha_Str', 'Estado']
         df_to_save = df_plan.drop(columns=[c for c in cols_to_drop if c in df_plan.columns])
 
-        save_plan_history_data(df_to_save, sheet_name="PlanHistoryDosis")
+        save_plan_history_data(df_to_save, sheet_name="Plan Dosis")
 
         save_config({
             "plan.checkpoint_fecha": pd.Timestamp.now(tz='Europe/Madrid').isoformat(),
@@ -142,16 +152,16 @@ def add_toma(fecha_toma, ml_toma) -> DataFrame:
     return df_plan
 
 
-def replanificar(dosis_media, reduccion_diaria, cantidad_inicial):
+def replanificar(ml_dosis_actual, reduccion_diaria, ml_dia_actual,intervalo_horas):
     df_existente = obtener_tabla()
     fecha_actual_str = datetime.now().strftime("%Y-%m-%d")
 
     df_conservada = df_existente[df_existente["Fecha"] < fecha_actual_str]
-    df_nuevo = crear_tabla(dosis_media, reduccion_diaria, cantidad_inicial)
+    df_nuevo = crear_tabla(reduccion_diaria, ml_dia_actual, intervalo_horas)
 
     df_final = pd.concat([df_conservada, df_nuevo], ignore_index=True)
 
-    save_plan_history_data(df_final, sheet_name="PlanHistoryDosis")  # <- CORREGIDO
+    save_plan_history_data(df_final, sheet_name="Plan Dosis")  # <- CORREGIDO
 
     print(f"Plan replanificado en la hoja 'PlanHistory'.")
     return df_final
