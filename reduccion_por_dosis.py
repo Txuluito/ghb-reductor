@@ -129,6 +129,27 @@ def dosis_actual():
     df = st.session_state.df_dosis.copy()
     row = df[df["Fecha"] == pd.Timestamp.now(tz='Europe/Madrid').strftime('%Y-%m-%d')]
     if not row.empty:
-        return row['Dosis']
+        return float(row['Dosis'].iloc[0])
     else:
         return 3.5
+def intervalo():
+    df = st.session_state.df_dosis.copy()
+    row = df[df["Fecha"] == pd.Timestamp.now(tz='Europe/Madrid').strftime('%Y-%m-%d')]
+    if not row.empty:
+        intervalo_str = row['Intervalo'].iloc[0]
+        # Parse "Xh Ym" format
+        parts = intervalo_str.replace('h', ' ').replace('m', '').split()
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + int(parts[1])
+    return 120 # Default to 120 minutes
+
+def minEspera(ml_dosis,saldo):
+    dosis_target = float(st.session_state.config.get("consumo.ml_dosis", 3.0))
+    intervalo_horas = st.session_state.config.get("consumo.intervalo_minutos", 120)/ 60.0
+
+    tasa_gen = dosis_target / intervalo_horas if intervalo_horas > 0 else 0
+
+    # Recalcular métricas finales
+    if tasa_gen > 0 and saldo < ml_dosis:
+        return ((ml_dosis - saldo) / tasa_gen * 60)
+    return 0

@@ -30,7 +30,7 @@ class ReduccionTab:
                         format="%.2f", key="reduccion_diaria")
 
         c1, c2, c3, c4 = st.columns(4)
-        if c1.button("💾 NUEVO PLAN"):
+        if not st.session_state.config.get("plan.fecha_inicio_plan")  and c4.button("💾 NUEVO PLAN"):
             reduccion.crear_nuevo_plan(
                 st.session_state.get("ml_dia_actual"),
                 st.session_state.get("ml_dosis_actual"),

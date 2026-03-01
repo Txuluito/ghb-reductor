@@ -119,3 +119,53 @@ def add_toma(fecha_toma, ml_toma) -> DataFrame:
     if not row.empty:
         df.loc[df["Fecha"] == fecha_toma.strftime('%Y-%m-%d'), 'Real (ml)']+=ml_toma
     save_plan_history_data(df, sheet_name="Plan Tiempo")
+def dosis_actual():
+    df = st.session_state.df_tiempos.copy()
+    row = df[df["Fecha"] == pd.Timestamp.now(tz='Europe/Madrid').strftime('%Y-%m-%d')]
+    if not row.empty:
+        return float(row['Dosis'].iloc[0])
+    else:
+        return 3.5
+def intervalo():
+    df = st.session_state.df_tiempos.copy()
+    ahora = pd.Timestamp.now(tz='Europe/Madrid')
+    fecha_inicio_plan = pd.to_datetime(st.session_state.config.get("plan.fecha_inicio_plan")) if st.session_state.config.get(
+        "plan.fecha_inicio_plan") else ahora
+
+    if fecha_inicio_plan.tzinfo is None:
+        fecha_inicio_plan = fecha_inicio_plan.tz_localize('UTC').tz_convert('Europe/Madrid')
+    else:
+        fecha_inicio_plan = fecha_inicio_plan.tz_convert('Europe/Madrid')
+
+    ml_reduccion_diaria = float(st.session_state.config.get("plan.reduccion_diaria", 0.5))
+    ml_dia = float(st.session_state.config.get("plan.ml_dia", 15.0))
+
+    horas_desde_inicio = (ahora - fecha_inicio_plan).total_seconds() / 3600
+    dias_flotantes = max(0.0, horas_desde_inicio / 24.0)
+    objetivo_actual = max(0.0, ml_dia - (ml_reduccion_diaria * dias_flotantes))
+    tasa_gen = objetivo_actual / 24.0
+    if tasa_gen > 0:
+        return  int((dosis_actual() / tasa_gen) * 60)
+    else:
+        return 0
+
+def minEspera(ml_dosis,saldo):
+    ahora = pd.Timestamp.now(tz='Europe/Madrid')
+    fecha_inicio_plan = pd.to_datetime(
+        st.session_state.config.get("plan.fecha_inicio_plan")) if st.session_state.config.get(
+        "plan.fecha_inicio_plan") else ahora
+    if fecha_inicio_plan.tzinfo is None:
+        fecha_inicio_plan = fecha_inicio_plan.tz_localize('UTC').tz_convert('Europe/Madrid')
+    else:
+        fecha_inicio_plan = fecha_inicio_plan.tz_convert('Europe/Madrid')
+
+    ml_reduccion_diaria = float(st.session_state.config.get("plan.reduccion_diaria", 0.5))
+    ml_dia = float(st.session_state.config.get("plan.ml_dia", 15.0))
+
+    horas_desde_inicio = (ahora - fecha_inicio_plan).total_seconds() / 3600
+    dias_flotantes = max(0.0, horas_desde_inicio / 24.0)
+    objetivo_actual = max(0.0, ml_dia - (ml_reduccion_diaria * dias_flotantes))
+    tasa_gen = objetivo_actual / 24.0
+    if tasa_gen > 0 and saldo < ml_dosis:
+        return ((ml_dosis - saldo) / tasa_gen * 60)
+    return 0
