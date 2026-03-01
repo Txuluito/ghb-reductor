@@ -21,6 +21,9 @@ def load_config():
     if 'df_dosis' not in st.session_state:
         st.session_state.df_dosis = reduccion_por_dosis.obtener_tabla()
         logging.info("STATE: df_dosis cargada y guardada en session_state.")
+    if 'df_excel' not in st.session_state:
+        st.session_state.df_excel = database.get_excel_data()
+        logging.info("STATE: df_excel cargada y guardada en session_state.")
 
     # No es necesario devolver nada, ya que el estado se gestiona en st.session_state
 
@@ -37,4 +40,7 @@ def invalidate_config():
         logging.info("STATE: df_tiempos invalidada (borrada) de session_state.")
     if 'df_dosis' in st.session_state:
         del st.session_state.df_dosis
+        logging.info("STATE: df_dosis invalidada (borrada) de session_state.")
+    if 'df_excel' in st.session_state:
+        del st.session_state.df_excel
         logging.info("STATE: df_dosis invalidada (borrada) de session_state.")

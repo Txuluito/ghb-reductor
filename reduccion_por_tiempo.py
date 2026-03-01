@@ -6,44 +6,23 @@ from pandas import DataFrame
 
 from database import get_plan_history_data, save_plan_history_data, save_config
 
+def minDesdeUltimaToma():
+    df_excel = st.session_state.df_excel.copy()
+    if df_excel.iloc[0]['hora']:
+        fecha_hora_ultima_toma = pd.to_datetime(
+            df_excel.iloc[0]['fecha'] + ' ' + df_excel.iloc[0]['hora'],
+            format='%d/%m/%Y %H:%M:%S').tz_localize('Europe/Madrid')
+        return (pd.Timestamp.now(tz='Europe/Madrid')-fecha_hora_ultima_toma).total_seconds() / 60
+    return 0
+def mlDesdeUltimaToma():
+    return  objetivo_ml()/(24*60) * minDesdeUltimaToma()
+
+def mlBoteActual():
+    return  mlDesdeUltimaToma() + float(st.session_state.config.get("tiempos.checkpoint_ml",0))
 
 def mlAcumulados():
-    if st.session_state.config.get("plan.checkpoint_fecha"):
-        # Lógica original para plan por tiempo (reducción continua)
-        ml_reduccion_diaria = float(st.session_state.config.get("plan.reduccion_diaria", 0.5))
-        # Obtener la tasa diaria actual (ml/día) desde la configuración
-        ml_dia_actual = float(st.session_state.config.get("consumo.ml_dia", 15.0))
-        
-        checkpoint_ml = float(st.session_state.config.get("tiempos.checkpoint_ml"))
-        checkpoint_fecha = pd.to_datetime(st.session_state.config.get("plan.checkpoint_fecha"))
+    return  mlDesdeUltimaToma() + float(st.session_state.config.get("tiempos.checkpoint_ml",0))
 
-        if checkpoint_fecha.tzinfo is None or checkpoint_fecha.tzinfo.utcoffset(pd.Timestamp.now(tz='Europe/Madrid')) is None:
-            checkpoint_fecha = checkpoint_fecha.tz_convert('Europe/Madrid')
-
-        horas_desde_checkpoint = (pd.Timestamp.now(tz='Europe/Madrid') - checkpoint_fecha).total_seconds() / 3600
-        
-        # Cálculo correcto de la generación:
-        # Generado = Integral de (Tasa_actual - Reduccion * t) dt
-        # = Tasa_actual * t - (Reduccion * t^2) / 2
-        # Donde t está en días.
-        
-        t_dias = horas_desde_checkpoint / 24.0
-        
-        # Calcular cuándo la tasa llegaría a 0 para no generar negativo
-        if ml_reduccion_diaria > 0:
-            t_fin_dias = ml_dia_actual / ml_reduccion_diaria
-        else:
-            t_fin_dias = 999999
-            
-        t_eff_dias = min(t_dias, t_fin_dias)
-        
-        generado = (ml_dia_actual * t_eff_dias) - (ml_reduccion_diaria * (t_eff_dias**2) / 2)
-
-        print(f"[mlAcumulados] -> checkpoint_ml: {checkpoint_ml}, generado: {generado}, ml_dia: {ml_dia_actual}")
-        return  float(checkpoint_ml + generado)
-
-    else:
-        return float(0)
 def crear_tabla(ml_dosis_actual, reduccion_diaria, ml_dia_actual):
 
     tabla = []
@@ -131,6 +110,8 @@ def add_toma(fecha_toma, ml_toma) -> DataFrame:
     row = df[df["Fecha"] == fecha_toma.strftime('%Y-%m-%d')]
     if not row.empty:
         df.loc[df["Fecha"] == fecha_toma.strftime('%Y-%m-%d'), 'Real (ml)']+=ml_toma
+
+
     save_plan_history_data(df, sheet_name="Plan Tiempo")
 def dosis_actual():
     df = st.session_state.df_tiempos.copy()
@@ -172,8 +153,9 @@ def calcular_metricas_tiempo(df_tomas):
     # 3. Calcular la tasa de generación de ml por minuto actual
     tasa_gen_actual_ml_por_minuto = objetivo_actual_ml_dia / 1440.0
 
-    # 4. Obtener la dosis del plan para hoy
-    dosis_plan_hoy = dosis_actual()
+    # 4. Obtener la dosis del plan (USAR CONFIGURACIÓN ACTUAL, NO TABLA HISTÓRICA)
+    # Esto asegura que si se cambia la dosis en la config, el cálculo de espera se actualice inmediatamente
+    dosis_plan_hoy = float(st.session_state.config.get("consumo.ml_dosis", 3.0))
 
     # 5. Calcular el intervalo teórico basado en la tasa actual
     intervalo_teorico = 0
@@ -194,3 +176,4 @@ def calcular_metricas_tiempo(df_tomas):
         mins_espera_saldo = (dosis_plan_hoy - saldo_actual) / tasa_gen_actual_ml_por_minuto
 
     return dosis_plan_hoy, intervalo_teorico, mins_espera, mins_espera_saldo
+
