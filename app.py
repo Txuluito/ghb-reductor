@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-import database
+from dao import database
 from tabs.tab_analisis import AnalisisTab
 from tabs.tab_historial import HistorialTab
 from tabs.tab_reduccion import ReduccionTab
@@ -10,7 +10,7 @@ from tabs.tab_toma import TomaTab
 import logging
 from state import load_config # <-- Importa la nueva función
 import streamlit.components.v1 as components
-import constants
+from config import constants
 
 # --- CONFIGURACIÓN DE LOGGING --- (si no la tienes ya)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s')

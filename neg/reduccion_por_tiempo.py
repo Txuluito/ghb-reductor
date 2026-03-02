@@ -4,7 +4,8 @@ import pandas as pd
 import streamlit as st
 from pandas import DataFrame
 
-from database import get_plan_history_data, save_plan_history_data, save_config
+from dao.database import get_plan_history_data, save_plan_history_data
+
 
 def minDesdeUltimaToma():
     df_excel = st.session_state.df_excel.copy()
@@ -16,12 +17,23 @@ def minDesdeUltimaToma():
     return 0
 def mlDesdeUltimaToma():
     return  objetivo_ml()/(24*60) * minDesdeUltimaToma()
-
 def mlBoteActual():
     return  mlDesdeUltimaToma() + float(st.session_state.config.get("tiempos.checkpoint_ml",0))
 
 def mlAcumulados():
     return  mlDesdeUltimaToma() + float(st.session_state.config.get("tiempos.checkpoint_ml",0))
+
+def mlAminutos(ml):
+    # (1140 * ml) / objetivo_ml()
+    print(f"{ml}")
+    print(f"{objetivo_ml()}")
+    print(f"{1140 * ml}")
+    resultado =(1140 * ml) / objetivo_ml()
+    print(f"{resultado}")
+    return int(resultado)
+def minutosAml(minutos):
+   return (objetivo_ml()/(24*60))/minutos
+
 
 def crear_tabla(ml_dosis_actual, reduccion_diaria, ml_dia_actual):
 
@@ -122,7 +134,6 @@ def dosis_actual():
         return float(row['Dosis'].iloc[0])
     else:
         return 0
-
 def objetivo_ml():
     df = st.session_state.df_tiempos.copy()
     if df.empty or "Fecha" not in df.columns:
@@ -132,7 +143,6 @@ def objetivo_ml():
         return float(row['Objetivo (ml)'].iloc[0])
     else:
         return 0
-
 def calcular_metricas_tiempo(df_tomas):
     ahora = pd.Timestamp.now(tz='Europe/Madrid')
 

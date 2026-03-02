@@ -1,16 +1,16 @@
 import pandas as pd
 
-import reduccion_por_dosis
-import reduccion_por_tiempo
+from neg import reduccion_por_dosis,reduccion_por_tiempo
+
 # Importa las funciones de base de datos
-from database import save_plan_history_data, save_config, enviar_toma_api
-import streamlit as st
+from dao.database import save_plan_history_data, save_config, enviar_toma_api
+
 
 def guardar_toma(fecha_toma, hora_toma, ml_toma):
 
     save_config({
         "plan.checkpoint_fecha": pd.Timestamp.now(tz='Europe/Madrid').isoformat(),
-        "tiempos.checkpoint_ml":  reduccion_por_tiempo.mlAcumulados() - ml_toma,
+        "tiempos.checkpoint_ml": reduccion_por_tiempo.mlAcumulados() - ml_toma,
         "dosis.checkpoint_ml": reduccion_por_tiempo.mlAcumulados() - ml_toma,
     })
     enviar_toma_api(fecha_toma.strftime('%d/%m/%Y'), hora_toma.strftime('%H:%M:%S'), ml_toma)

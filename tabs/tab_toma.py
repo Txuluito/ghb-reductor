@@ -1,11 +1,10 @@
+import math
+
 import streamlit as st
 import pandas as pd
 
-import database
-import logic
-import reduccion
-import reduccion_por_dosis
-import reduccion_por_tiempo
+from dao import database
+from neg import reduccion_por_dosis, reduccion_por_tiempo, reduccion
 from state import invalidate_config
 
 import time
@@ -31,8 +30,8 @@ class TomaTab:
             if st.button("🚀 ENVIAR REGISTRO", use_container_width=True):
                try:
                    reduccion.guardar_toma(st.session_state.get("fecha_toma_input"),
-                                               st.session_state.get("hora_toma_input"),
-                                               st.session_state.get("dosis_toma"))
+                                          st.session_state.get("hora_toma_input"),
+                                          st.session_state.get("dosis_toma"))
                    st.success("Registrado")
                    time.sleep(1)
                    invalidate_config()
@@ -46,7 +45,7 @@ class TomaTab:
         ahora = pd.Timestamp.now(tz='Europe/Madrid')
         ultima_toma = self.df['timestamp'].max() if not self.df.empty else ahora
         min_desde_ultima_toma = (ahora - ultima_toma).total_seconds() / 60
-
+        tiempo_en_bote=0
         # Cargar preferencia guardada si no está en sesión
         if "visualizacion_activa" not in st.session_state:
              st.session_state.visualizacion_activa = st.session_state.config.get("visualizacion_activa", "tiempo")
@@ -85,6 +84,7 @@ class TomaTab:
         if tipo_visualizacion == "tiempo":
             saldo = reduccion_por_tiempo.mlAcumulados()
             ml_dosis, intervalo_teorico, mins_espera, mins_espera_saldo = reduccion_por_tiempo.calcular_metricas_tiempo(self.df)
+            tiempo_en_bote=reduccion_por_tiempo.mlAminutos(saldo)
         else: # 'dosis'
              saldo = reduccion_por_dosis.mlAcumulados()
              ml_dosis, intervalo_teorico, mins_espera, mins_espera_saldo = reduccion_por_dosis.calcular_metricas_dosis(self.df)
@@ -101,6 +101,8 @@ class TomaTab:
         
         # Mostrar tiempo de espera por saldo si es relevante
         if mins_espera_saldo > 0:
-            m4.caption(f"⏳ Saldo: {int(mins_espera_saldo // 60)}h {int(mins_espera_saldo % 60)}m")
+            m4.caption(f"⏳ Tiempo: {int(tiempo_en_bote // 60)}h {int(tiempo_en_bote % 60)}m")
 
-        m5.metric("Saldo", f"{saldo:.2f} ml", delta_color="normal" if saldo >= 0 else "inverse")
+        m5.metric("Saldo", f"{saldo:.2f} ml",  delta=f"{int(tiempo_en_bote // 60)}h {(tiempo_en_bote % 60)}m")
+        if tiempo_en_bote > 0:
+            m5.caption(f"⏳ Saldo: {int(tiempo_en_bote // 60)}h {int(tiempo_en_bote % 60)}m")

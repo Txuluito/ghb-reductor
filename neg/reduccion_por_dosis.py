@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 from pandas import DataFrame
 
-from database import get_plan_history_data, save_plan_history_data, save_config
+from dao.database import get_plan_history_data, save_plan_history_data
 
 
 def mlAcumulados():

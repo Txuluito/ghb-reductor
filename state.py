@@ -1,9 +1,8 @@
 import streamlit as st
-import database
+from dao import database
 import logging
 
-import reduccion_por_dosis
-import reduccion_por_tiempo
+from neg import reduccion_por_dosis, reduccion_por_tiempo
 
 
 def load_config():
